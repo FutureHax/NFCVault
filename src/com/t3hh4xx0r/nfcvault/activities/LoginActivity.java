@@ -1,5 +1,9 @@
 package com.t3hh4xx0r.nfcvault.activities;
 
+import java.io.UnsupportedEncodingException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
@@ -24,6 +28,8 @@ import com.parse.ParseException;
 import com.parse.ParseUser;
 import com.parse.SignUpCallback;
 import com.t3hh4xx0r.nfcvault.ChangeLogDialog;
+import com.t3hh4xx0r.nfcvault.OfflineAccountManager;
+import com.t3hh4xx0r.nfcvault.OfflineAccountManager.OfflineAccount;
 import com.t3hh4xx0r.nfcvault.R;
 import com.t3hh4xx0r.nfcvault.SettingsProvider;
 
@@ -54,6 +60,7 @@ public class LoginActivity extends Activity {
 	private View mLoginStatusView;
 	private TextView mLoginStatusMessageView;
 	private CheckBox rememberMe;
+	private CheckBox offline;
 	SettingsProvider settings;
 
 	@Override
@@ -62,8 +69,8 @@ public class LoginActivity extends Activity {
 		setContentView(R.layout.activity_login);
 		getActionBar().setTitle("Login");
 		ChangeLogDialog cl = new ChangeLogDialog(this);
-//		Uncomment to show always.
-//		cl.dontuseSetLastVersion("0.0");
+		// Uncomment to show always.
+		// cl.dontuseSetLastVersion("0.0");
 		if (cl.firstRun()) {
 			cl.getLogDialog().show();
 		}
@@ -82,6 +89,15 @@ public class LoginActivity extends Activity {
 			public void onCheckedChanged(CompoundButton buttonView,
 					boolean isChecked) {
 				settings.setRememberMe(isChecked);
+			}
+		});
+		offline = (CheckBox) findViewById(R.id.settings_offline);
+		offline.setChecked(settings.getOffline());
+		offline.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+			@Override
+			public void onCheckedChanged(CompoundButton buttonView,
+					boolean isChecked) {
+				settings.setOffline(isChecked);
 			}
 		});
 		mPasswordView = (EditText) findViewById(R.id.password);
@@ -222,20 +238,32 @@ public class LoginActivity extends Activity {
 	 * the user.
 	 */
 	public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
+		boolean attemptingOffline = false;
+
 		@Override
 		protected Boolean doInBackground(Void... params) {
 			ParseUser.logInInBackground(mEmail, mPassword, new LogInCallback() {
 				@Override
-				public void done(ParseUser u, ParseException arg1) {
+				public void done(ParseUser u, ParseException exception) {
 					mAuthTask = null;
 					showProgress(false);
-
 					if (u != null) {
+						if (offline.isChecked()) {
+							OfflineAccountManager acctMan = new OfflineAccountManager(
+									LoginActivity.this);
+							try {
+								acctMan.saveAccount(u, mPassword);
+							} catch (UnsupportedEncodingException e) {
+								e.printStackTrace();
+							} catch (NoSuchAlgorithmException e) {
+								e.printStackTrace();
+							}
+						}
 						Intent i = new Intent(LoginActivity.this,
 								MainActivity.class);
 						startActivity(i);
 						finish();
-					} else {
+					} else if (u == null && exception == null) {
 						ParseUser user = new ParseUser();
 						user.setUsername(mEmail);
 						user.setPassword(mPassword);
@@ -268,6 +296,20 @@ public class LoginActivity extends Activity {
 								}
 							}
 						});
+					} else if (exception != null) {
+						Boolean containsUnknownHostException = exception
+								.getMessage().contains(
+										"java.net.UnknownHostException");
+						if (containsUnknownHostException && offline.isChecked()) {
+							attemptingOffline = true;
+							try {
+								attemptOfflineLogin(mEmail, mPassword);
+							} catch (UnsupportedEncodingException e) {
+								e.printStackTrace();
+							} catch (NoSuchAlgorithmException e) {
+								e.printStackTrace();
+							}
+						}
 					}
 				}
 			});
@@ -277,7 +319,26 @@ public class LoginActivity extends Activity {
 		@Override
 		protected void onCancelled() {
 			mAuthTask = null;
-			showProgress(false);
+			if (!attemptingOffline) {
+				showProgress(false);
+			}
+		}
+	}
+
+	protected void attemptOfflineLogin(String email, String password) throws UnsupportedEncodingException, NoSuchAlgorithmException {
+		OfflineAccountManager acctMan = new OfflineAccountManager(
+				LoginActivity.this);
+		OfflineAccount acct = acctMan.getOfflineAccountForEmail(email);
+		if (acct != null) {
+			byte[] bytesOfMessage = password.getBytes("UTF-8");
+			MessageDigest md = MessageDigest.getInstance("MD5");
+			byte[] digest = md.digest(bytesOfMessage);
+			String hashed = MainActivity.ByteArrayToHexString(digest);
+			if (hashed.equals(acct.getHashedPass())) {
+				Toast.makeText(this, "Offline Login success", Toast.LENGTH_LONG).show();
+			} else {
+				Toast.makeText(this, "Offline Login failure", Toast.LENGTH_LONG).show();
+			}
 		}
 	}
 

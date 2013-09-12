@@ -61,31 +61,45 @@
                 android:maxLines="1"
                 android:singleLine="true" />
 
-            <RelativeLayout
+            <LinearLayout
                 android:id="@+id/button_holder"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="16dp" >
 
-                <CheckBox
-                    android:id="@+id/settings_remember_me"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:id="@+id/check_holder"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_alignParentLeft="true"
                     android:layout_centerVertical="true"
-                    android:text="Remember Me" />
+                    android:layout_weight="1"
+                    android:orientation="vertical" >
+
+                    <CheckBox
+                        android:id="@+id/settings_remember_me"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Remember Me" />
+
+                    <CheckBox
+                        android:id="@+id/settings_offline"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Make Available Offline" />
+                </LinearLayout>
 
                 <Button
                     android:id="@+id/sign_in_button"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_alignParentRight="true"
                     android:layout_centerVertical="true"
                     android:layout_gravity="right"
+                    android:layout_weight="1"
                     android:text="@string/action_sign_in_register" />
-            </RelativeLayout>
-
+            </LinearLayout>
         </LinearLayout>
     </ScrollView>
 

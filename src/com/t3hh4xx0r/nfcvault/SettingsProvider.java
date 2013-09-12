@@ -12,6 +12,7 @@ import com.t3hh4xx0r.nfcvault.activities.MainActivity;
 
 public class SettingsProvider {
 	private static final String HASHED_KEY = "key_hash";
+	private static final String OFFLINE = "ofline";
 	private static final String REMEMBER_ME = "remember_me";
 	private static final String REMEMBER_ME_VALUE = "remember_me_value";
 	public static final String SALT = "PASSWORDMANAGER";
@@ -45,7 +46,6 @@ public class SettingsProvider {
 		byte[] digest = md.digest(bytesOfMessage);
 		String keyHash = MainActivity.ByteArrayToHexString(digest);
 		String storedHash = getHashedKey();
-		Log.d("THE VALUES", keyHash + " : " + storedHash);
 		return keyHash.equals(storedHash);
 	}
 
@@ -67,5 +67,15 @@ public class SettingsProvider {
 	public boolean getRememberMe() {
 		return PreferenceManager.getDefaultSharedPreferences(c).getBoolean(
 				REMEMBER_ME, false);
+	}
+	
+	public void setOffline(boolean offline) {
+		PreferenceManager.getDefaultSharedPreferences(c).edit()
+				.putBoolean(OFFLINE, offline).apply();
+	}
+
+	public boolean getOffline() {
+		return PreferenceManager.getDefaultSharedPreferences(c).getBoolean(
+				OFFLINE, false);
 	}
 }
