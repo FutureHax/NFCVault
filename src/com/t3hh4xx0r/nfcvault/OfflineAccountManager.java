@@ -38,6 +38,9 @@ public class OfflineAccountManager {
 		OfflineAccount res = new OfflineAccount();
 		Set<String> resSet = PreferenceManager.getDefaultSharedPreferences(c)
 				.getStringSet(email, null);
+		if (resSet == null) {
+			return null;
+		}
 		for (String line : resSet) {
 			if (line.startsWith("user_")) {
 				res.setUsername(line.replace("user_", ""));

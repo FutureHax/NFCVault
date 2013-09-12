@@ -247,56 +247,60 @@ public class LoginActivity extends Activity {
 				public void done(ParseUser u, ParseException exception) {
 					mAuthTask = null;
 					showProgress(false);
-					if (u != null) {
-						if (offline.isChecked()) {
-							OfflineAccountManager acctMan = new OfflineAccountManager(
-									LoginActivity.this);
-							try {
-								acctMan.saveAccount(u, mPassword);
-							} catch (UnsupportedEncodingException e) {
-								e.printStackTrace();
-							} catch (NoSuchAlgorithmException e) {
-								e.printStackTrace();
-							}
-						}
-						Intent i = new Intent(LoginActivity.this,
-								MainActivity.class);
-						startActivity(i);
-						finish();
-					} else if (u == null && exception == null) {
-						ParseUser user = new ParseUser();
-						user.setUsername(mEmail);
-						user.setPassword(mPassword);
-						user.setEmail(mEmail);
-						user.signUpInBackground(new SignUpCallback() {
-							@Override
-							public void done(final ParseException e) {
-								if (e != null) {
-									LoginActivity.this
-											.runOnUiThread(new Runnable() {
-												@Override
-												public void run() {
-													Toast.makeText(
-															LoginActivity.this,
-															e.getMessage()
-																	.toString(),
-															Toast.LENGTH_LONG)
-															.show();
-													mPasswordView.setText("");
-												}
-											});
-								} else {
-									LoginActivity.this
-											.runOnUiThread(new Runnable() {
-												@Override
-												public void run() {
-													handleRegistered();
-												}
-											});
+					if (exception == null) {
+						if (u != null) {
+							//Login normally
+							if (offline.isChecked()) {
+								OfflineAccountManager acctMan = new OfflineAccountManager(
+										LoginActivity.this);
+								try {
+									acctMan.saveAccount(u, mPassword);
+								} catch (UnsupportedEncodingException e) {
+									e.printStackTrace();
+								} catch (NoSuchAlgorithmException e) {
+									e.printStackTrace();
 								}
 							}
-						});
-					} else if (exception != null) {
+							Intent i = new Intent(LoginActivity.this,
+									MainActivity.class);
+							startActivity(i);
+							finish();
+						} else {
+							//Needs to register
+							ParseUser user = new ParseUser();
+							user.setUsername(mEmail);
+							user.setPassword(mPassword);
+							user.setEmail(mEmail);
+							user.signUpInBackground(new SignUpCallback() {
+								@Override
+								public void done(final ParseException e) {
+									if (e != null) {
+										LoginActivity.this
+												.runOnUiThread(new Runnable() {
+													@Override
+													public void run() {
+														Toast.makeText(
+																LoginActivity.this,
+																e.getMessage()
+																		.toString(),
+																Toast.LENGTH_LONG)
+																.show();
+														mPasswordView.setText("");
+													}
+												});
+									} else {
+										LoginActivity.this
+												.runOnUiThread(new Runnable() {
+													@Override
+													public void run() {
+														handleRegistered();
+													}
+												});
+									}
+								}
+							});
+						}					
+					} else {
 						Boolean containsUnknownHostException = exception
 								.getMessage().contains(
 										"java.net.UnknownHostException");
@@ -339,6 +343,8 @@ public class LoginActivity extends Activity {
 			} else {
 				Toast.makeText(this, "Offline Login failure", Toast.LENGTH_LONG).show();
 			}
+		} else {
+			Toast.makeText(this, "You must have an internet connection to register a new account.", Toast.LENGTH_LONG).show();
 		}
 	}
 
