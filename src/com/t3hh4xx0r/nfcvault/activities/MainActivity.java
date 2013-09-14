@@ -15,6 +15,7 @@ import android.content.DialogInterface.OnClickListener;
 import android.content.DialogInterface.OnDismissListener;
 import android.content.Intent;
 import android.graphics.Typeface;
+import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
@@ -28,6 +29,7 @@ import android.view.animation.AnimationUtils;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.fima.cardsui.objects.Card;
 import com.fima.cardsui.objects.Card.OnCardSwiped;
@@ -39,9 +41,9 @@ import com.parse.GetCallback;
 import com.parse.ParseException;
 import com.parse.ParseObject;
 import com.parse.ParseQuery;
+import com.parse.ParseQuery.CachePolicy;
 import com.parse.ParseUser;
 import com.parse.SaveCallback;
-import com.t3hh4xx0r.nfcvault.ChangeLogDialog;
 import com.t3hh4xx0r.nfcvault.LaunchPopup;
 import com.t3hh4xx0r.nfcvault.LaunchPopupManager;
 import com.t3hh4xx0r.nfcvault.Password;
@@ -50,6 +52,8 @@ import com.t3hh4xx0r.nfcvault.PasswordCard.OnViewButtonLister;
 import com.t3hh4xx0r.nfcvault.R;
 import com.t3hh4xx0r.nfcvault.SettingsProvider;
 import com.t3hh4xx0r.nfcvault.encryption.Encryption;
+
+import de.cketti.library.changelog.ChangeLog;
 
 public class MainActivity extends FragmentActivity {
 	CardUI mCardView;
@@ -86,7 +90,7 @@ public class MainActivity extends FragmentActivity {
 		mCards = new ArrayList<PasswordCard>();
 
 		setupPasswordCards();
-		
+
 		managePopups();
 	}
 
@@ -122,6 +126,7 @@ public class MainActivity extends FragmentActivity {
 		mCards.clear();
 		mCardView.refresh();
 		ParseQuery<ParseObject> query = ParseQuery.getQuery("Password");
+		query.setCachePolicy(CachePolicy.NETWORK_ELSE_CACHE);
 		query.whereEqualTo("key_owner", ParseUser.getCurrentUser().getEmail());
 		query.findInBackground(new FindCallback<ParseObject>() {
 			@Override
@@ -137,14 +142,22 @@ public class MainActivity extends FragmentActivity {
 						card.setOnClickListener(new View.OnClickListener() {
 							@Override
 							public void onClick(View v) {
-								Intent i = new Intent(v.getContext(),
-										AddPasswordActivity.class);
-								Bundle b = new Bundle();
-								b.putSerializable("password",
-										card.getPassword());
-								b.putStringArrayList("stacks", getStackNames());
-								i.putExtras(b);
-								startActivityForResult(i, 1);
+								if (isOnline(v.getContext())) {
+									Intent i = new Intent(v.getContext(),
+											AddPasswordActivity.class);
+									Bundle b = new Bundle();
+									b.putSerializable("password",
+											card.getPassword());
+									b.putStringArrayList("stacks",
+											getStackNames());
+									i.putExtras(b);
+									startActivityForResult(i, 1);
+								} else {
+									Toast.makeText(
+											v.getContext(),
+											"Offline editing not currently supported",
+											Toast.LENGTH_LONG).show();
+								}
 							}
 						});
 
@@ -152,46 +165,8 @@ public class MainActivity extends FragmentActivity {
 							@Override
 							public void onCardSwiped(Card cardRes,
 									final View layout) {
-								AlertDialog.Builder b = new Builder(layout
-										.getContext());
-								b.setTitle("Delete This Data?");
-								b.setMessage("This will delete the data from you local device and from the cloud.\n\nAre you sure you want to continue?");
-								b.setPositiveButton("Yes",
-										new OnClickListener() {
-											@Override
-											public void onClick(
-													DialogInterface dialog,
-													int which) {
-												o.deleteInBackground(new DeleteCallback() {
-													@Override
-													public void done(
-															ParseException arg0) {
-														CardStack stack = getStackForTitle(card
-																.getPassword()
-																.getDataStack());
-														if (stack.getCards()
-																.size() == 0) {
-															setupPasswordCards();
-														}
-													}
-												});
-											}
 
-										});
-								b.setNegativeButton("No",
-										new OnClickListener() {
-											@Override
-											public void onClick(
-													DialogInterface dialog,
-													int which) {
-												getStackForTitle(
-														card.getPassword()
-																.getDataStack())
-														.add(card);
-												mCardView.refresh();
-											}
-										});
-								b.create().show();
+								handleCardSwipe(layout, card, o);
 							}
 						});
 						mCards.add(card);
@@ -202,6 +177,43 @@ public class MainActivity extends FragmentActivity {
 				}
 			}
 		});
+	}
+
+	private void handleCardSwipe(View layout, final PasswordCard card,
+			final ParseObject o) {
+		if (isOnline(this)) {
+			AlertDialog.Builder b = new Builder(layout.getContext());
+			b.setTitle("Delete This Data?");
+			b.setMessage("This will delete the data from your local device and from the cloud.\n\nAre you sure you want to continue?");
+			b.setPositiveButton("Yes", new OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					o.deleteInBackground(new DeleteCallback() {
+						@Override
+						public void done(ParseException arg0) {
+							CardStack stack = getStackForTitle(card
+									.getPassword().getDataStack());
+							if (stack.getCards().size() == 0) {
+							}
+						}
+					});
+				}
+			});
+			b.setNegativeButton("No", new OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					getStackForTitle(card.getPassword().getDataStack()).add(
+							card);
+					mCardView.refresh();
+				}
+			});
+			b.create().show();
+		} else {
+			Toast.makeText(
+					this,
+					"Deletion is only supported while online. Please check your conection and try again.",
+					Toast.LENGTH_LONG).show();
+		}
 	}
 
 	private void hideProgress(Context c) {
@@ -359,7 +371,7 @@ public class MainActivity extends FragmentActivity {
 		b.setPositiveButton("View Changelog", new OnClickListener() {
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
-				ChangeLogDialog cl = new ChangeLogDialog(MainActivity.this);
+				ChangeLog cl = new ChangeLog(MainActivity.this);
 				cl.getFullLogDialog().show();
 			}
 		});
@@ -579,7 +591,7 @@ public class MainActivity extends FragmentActivity {
 		}
 		return ret;
 	}
-	
+
 	private LaunchPopup setupRateMePopup() {
 		final LaunchPopup rate = new LaunchPopup();
 		rate.setNeedsPlayStore(true);
@@ -595,6 +607,13 @@ public class MainActivity extends FragmentActivity {
 			}
 		});
 		return rate;
+	}
+
+	public static boolean isOnline(Context c) {
+		ConnectivityManager cm = (ConnectivityManager) c
+				.getSystemService(Context.CONNECTIVITY_SERVICE);
+		return cm.getActiveNetworkInfo() != null
+				&& cm.getActiveNetworkInfo().isConnected();
 	}
 
 }

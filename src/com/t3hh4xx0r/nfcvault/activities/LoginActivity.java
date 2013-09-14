@@ -8,6 +8,8 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.AlertDialog.Builder;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Build;
@@ -27,11 +29,12 @@ import com.parse.LogInCallback;
 import com.parse.ParseException;
 import com.parse.ParseUser;
 import com.parse.SignUpCallback;
-import com.t3hh4xx0r.nfcvault.ChangeLogDialog;
 import com.t3hh4xx0r.nfcvault.OfflineAccountManager;
 import com.t3hh4xx0r.nfcvault.OfflineAccountManager.OfflineAccount;
 import com.t3hh4xx0r.nfcvault.R;
 import com.t3hh4xx0r.nfcvault.SettingsProvider;
+
+import de.cketti.library.changelog.ChangeLog;
 
 /**
  * Activity which displays a login screen to the user, offering registration as
@@ -68,10 +71,10 @@ public class LoginActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_login);
 		getActionBar().setTitle("Login");
-		ChangeLogDialog cl = new ChangeLogDialog(this);
+		ChangeLog cl = new ChangeLog(this);
 		// Uncomment to show always.
 		// cl.dontuseSetLastVersion("0.0");
-		if (cl.firstRun()) {
+		if (cl.isFirstRun()) {
 			cl.getLogDialog().show();
 		}
 		settings = new SettingsProvider(this);
@@ -249,7 +252,7 @@ public class LoginActivity extends Activity {
 					showProgress(false);
 					if (exception == null) {
 						if (u != null) {
-							//Login normally
+							// Login normally
 							if (offline.isChecked()) {
 								OfflineAccountManager acctMan = new OfflineAccountManager(
 										LoginActivity.this);
@@ -266,7 +269,7 @@ public class LoginActivity extends Activity {
 							startActivity(i);
 							finish();
 						} else {
-							//Needs to register
+							// Needs to register
 							ParseUser user = new ParseUser();
 							user.setUsername(mEmail);
 							user.setPassword(mPassword);
@@ -285,7 +288,8 @@ public class LoginActivity extends Activity {
 																		.toString(),
 																Toast.LENGTH_LONG)
 																.show();
-														mPasswordView.setText("");
+														mPasswordView
+																.setText("");
 													}
 												});
 									} else {
@@ -299,12 +303,14 @@ public class LoginActivity extends Activity {
 									}
 								}
 							});
-						}					
+						}
 					} else {
 						Boolean containsUnknownHostException = exception
 								.getMessage().contains(
 										"java.net.UnknownHostException");
-						if (containsUnknownHostException && offline.isChecked()) {
+						Boolean isInvalidCredentials = exception.getMessage()
+								.contains("invalid login credentials");
+						if (containsUnknownHostException) {
 							attemptingOffline = true;
 							try {
 								attemptOfflineLogin(mEmail, mPassword);
@@ -313,6 +319,15 @@ public class LoginActivity extends Activity {
 							} catch (NoSuchAlgorithmException e) {
 								e.printStackTrace();
 							}
+						} else if (isInvalidCredentials) {
+							Toast.makeText(LoginActivity.this,
+									"Invalid credentials", Toast.LENGTH_LONG)
+									.show();
+							mPasswordView.setText("");
+						} else {
+							Toast.makeText(LoginActivity.this,
+									exception.getMessage(), Toast.LENGTH_LONG)
+									.show();
 						}
 					}
 				}
@@ -329,7 +344,8 @@ public class LoginActivity extends Activity {
 		}
 	}
 
-	protected void attemptOfflineLogin(String email, String password) throws UnsupportedEncodingException, NoSuchAlgorithmException {
+	protected void attemptOfflineLogin(String email, String password)
+			throws UnsupportedEncodingException, NoSuchAlgorithmException {
 		OfflineAccountManager acctMan = new OfflineAccountManager(
 				LoginActivity.this);
 		OfflineAccount acct = acctMan.getOfflineAccountForEmail(email);
@@ -339,12 +355,20 @@ public class LoginActivity extends Activity {
 			byte[] digest = md.digest(bytesOfMessage);
 			String hashed = MainActivity.ByteArrayToHexString(digest);
 			if (hashed.equals(acct.getHashedPass())) {
-				Toast.makeText(this, "Offline Login success", Toast.LENGTH_LONG).show();
+				Intent i = new Intent(LoginActivity.this, MainActivity.class);
+				startActivity(i);
+				finish();
 			} else {
-				Toast.makeText(this, "Offline Login failure", Toast.LENGTH_LONG).show();
+				Toast.makeText(this, "Offline Login failure", Toast.LENGTH_LONG)
+						.show();
 			}
 		} else {
-			Toast.makeText(this, "You must have an internet connection to register a new account.", Toast.LENGTH_LONG).show();
+			AlertDialog.Builder b = new Builder(this);
+			b.setTitle("Login Error")
+					.setIcon(R.drawable.ic_launcher)
+					.setMessage(
+							"No internet connection is available and no account matching these credentials was found locally. To make an account available offline you must login at least one time with an internet connection.")
+					.create().show();
 		}
 	}
 
