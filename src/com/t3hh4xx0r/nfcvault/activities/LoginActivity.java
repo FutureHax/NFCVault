@@ -320,10 +320,43 @@ public class LoginActivity extends Activity {
 								e.printStackTrace();
 							}
 						} else if (isInvalidCredentials) {
-							Toast.makeText(LoginActivity.this,
-									"Invalid credentials", Toast.LENGTH_LONG)
-									.show();
-							mPasswordView.setText("");
+							// Toast.makeText(LoginActivity.this,
+							// "Invalid credentials", Toast.LENGTH_LONG)
+							// .show();
+							// mPasswordView.setText("");
+							ParseUser user = new ParseUser();
+							user.setUsername(mEmail);
+							user.setPassword(mPassword);
+							user.setEmail(mEmail);
+							user.signUpInBackground(new SignUpCallback() {
+								@Override
+								public void done(final ParseException e) {
+									if (e != null) {
+										LoginActivity.this
+												.runOnUiThread(new Runnable() {
+													@Override
+													public void run() {
+														Toast.makeText(
+																LoginActivity.this,
+																e.getMessage()
+																		.toString(),
+																Toast.LENGTH_LONG)
+																.show();
+														mPasswordView
+																.setText("");
+													}
+												});
+									} else {
+										LoginActivity.this
+												.runOnUiThread(new Runnable() {
+													@Override
+													public void run() {
+														handleRegistered();
+													}
+												});
+									}
+								}
+							});
 						} else {
 							Toast.makeText(LoginActivity.this,
 									exception.getMessage(), Toast.LENGTH_LONG)
