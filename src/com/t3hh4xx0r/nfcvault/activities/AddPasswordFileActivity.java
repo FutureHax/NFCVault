@@ -1,5 +1,8 @@
 package com.t3hh4xx0r.nfcvault.activities;
 
+import java.io.File;
+import java.io.IOException;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.AlertDialog.Builder;
@@ -7,6 +10,7 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -17,12 +21,12 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
 
-import com.t3hh4xx0r.nfcvault.VaultedText;
 import com.t3hh4xx0r.nfcvault.R;
 import com.t3hh4xx0r.nfcvault.SettingsProvider;
+import com.t3hh4xx0r.nfcvault.VaultedText;
 import com.t3hh4xx0r.nfcvault.encryption.Encryption;
 
-public class AddPasswordActivity extends Activity {
+public class AddPasswordFileActivity extends Activity {
 
 	private NfcAdapter mAdapter;
 	private PendingIntent mPendingIntent;
@@ -31,8 +35,9 @@ public class AddPasswordActivity extends Activity {
 
 	String secrectID;
 	String encryptedPass;
+	String dataType;
 
-	EditText passView, title;
+	EditText title;
 	AutoCompleteTextView stackName;
 	boolean isEditing = false;
 	VaultedText editable;
@@ -40,21 +45,21 @@ public class AddPasswordActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_add_password);
+		setContentView(R.layout.activity_add_password_file);
 		getActionBar().setDisplayHomeAsUpEnabled(true);
 		mAdapter = NfcAdapter.getDefaultAdapter(this);
 		mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this,
 				getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
-		passView = (EditText) findViewById(R.id.pass);
 		stackName = (AutoCompleteTextView) findViewById(R.id.stack);
 		stackName.setAdapter(new ArrayAdapter<String>(this,
 				android.R.layout.simple_dropdown_item_1line, getIntent()
 						.getStringArrayListExtra("stacks")));
+		dataType = getIntent().getStringExtra("type");
 		title = (EditText) findViewById(R.id.title);
 		isEditing = getIntent().hasExtra("password");
 		if (isEditing) {
-			editable = (VaultedText) getIntent().getSerializableExtra("password");
-			passView.setText(editable.getDataValue());
+			editable = (VaultedText) getIntent().getSerializableExtra(
+					"password");
 			stackName.setText(editable.getDataStack());
 			title.setText(editable.getDataTitle());
 		}
@@ -78,11 +83,13 @@ public class AddPasswordActivity extends Activity {
 
 	protected void saveAndFinish() {
 		if (editable == null) {
-			try {
-				encryptedPass = Encryption.encryptString(passView.getText()
-						.toString(), secrectID);
-			} catch (Exception e) {
-				e.printStackTrace();
+			if (MainActivity.TMP_FILE_AS_STRING != null) {
+				try {
+					encryptedPass = Encryption.encryptString(MainActivity.TMP_FILE_AS_STRING,
+							secrectID);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 		} else {
 			encryptedPass = editable.getDataValue();
@@ -133,7 +140,7 @@ public class AddPasswordActivity extends Activity {
 
 	private void warnWrongKey() {
 		AlertDialog.Builder b = new Builder(this);
-		b.setTitle("Master VaultedText Mismatch");
+		b.setTitle("Master Password Mismatch");
 		b.setMessage("When you originally setup your master password, the app hashed and stored that value. The hash of the key you just scanned does not match the stored hash. Confirm you are using the correct key and try again.");
 		b.create().show();
 	}
@@ -144,7 +151,8 @@ public class AddPasswordActivity extends Activity {
 		Bundle b = new Bundle();
 		if (encryptedPass != null) {
 			VaultedText p = new VaultedText(stackName.getText().toString(),
-					encryptedPass, title.getText().toString(), VaultedText.TYPE_TEXT);
+					"", title.getText().toString(),
+					dataType);
 			if (editable != null) {
 				p.setParseId(editable.getParseId());
 				b.putSerializable("oldPassword", editable);

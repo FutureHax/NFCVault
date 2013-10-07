@@ -2,14 +2,14 @@
 
     <item
         android:id="@+id/action_add_key"
-        android:icon="@drawable/ic_action_add_tag"
+        android:icon="@drawable/ic_action_add"
         android:showAsAction="always"
         android:title="Add Key"/>
     <item
-        android:id="@+id/action_add_password"
-        android:icon="@drawable/ic_action_add"
+        android:id="@+id/action_add_new"
+        android:icon="@drawable/ic_action_new"
         android:showAsAction="always"
-        android:title="Add Password"/>
+        android:title="Add Item"/>
     <item
         android:id="@+id/action_help"
         android:icon="@drawable/ic_help"

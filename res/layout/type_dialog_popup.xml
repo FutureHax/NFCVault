@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="10dp" >
+
+    <RelativeLayout
+        android:id="@+id/image_holder"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" >
+
+        <ImageView
+            android:id="@+id/image_icon"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_action_new_picture" />
+
+        <TextView
+            android:id="@+id/image_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/image_icon"
+            android:gravity="center"
+            android:text="Image" />
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/file_holder"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" >
+
+        <ImageView
+            android:id="@+id/file_icon"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:layout_gravity="center"
+
+            android:src="@drawable/ic_action_new_file" />
+
+        <TextView
+            android:id="@+id/file_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/file_icon"
+            android:gravity="center"
+            android:text="File" />
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/text_holder"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1" >
+
+        <ImageView
+            android:id="@+id/text_icon"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_action_abc" />
+
+        <TextView
+            android:id="@+id/text_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/text_icon"
+            android:gravity="center"
+            android:text="Text" />
+    </RelativeLayout>
+
+</LinearLayout>

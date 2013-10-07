@@ -11,17 +11,22 @@ import android.widget.TextView;
 
 import com.fima.cardsui.objects.Card;
 
-public class PasswordCard extends Card {
-	Password password;
+public class VaultedTextCard extends Card {
+	VaultedText password;
 	OnViewButtonLister listener;
 	public TextView desc;
 	TextView title;
 	ImageView view;
+	ImageView typeIndicator;
 
 	boolean showingTrueData = false;
 
 	public boolean isShowingTrueData() {
 		return showingTrueData;
+	}
+
+	public Context getContext() {
+		return view.getContext();
 	}
 
 	public void setShowingTrueData(boolean showingTrueData) {
@@ -34,7 +39,7 @@ public class PasswordCard extends Card {
 		}
 	}
 
-	public PasswordCard(Password pass, OnViewButtonLister listener) {
+	public VaultedTextCard(VaultedText pass, OnViewButtonLister listener) {
 		super(pass.getDataTitle(), pass.getDataValue(), String.format("#%06X",
 				(0xFFFFFF & ((int) 522))), String.format("#%06X",
 				(0xFFFFFF & ((int) 522))), false, true);
@@ -42,7 +47,7 @@ public class PasswordCard extends Card {
 		this.listener = listener;
 	}
 
-	public Password getPassword() {
+	public VaultedText getPassword() {
 		return password;
 	}
 
@@ -51,11 +56,19 @@ public class PasswordCard extends Card {
 		View v = LayoutInflater.from(context).inflate(R.layout.password_card,
 				null);
 		desc = (TextView) v.findViewById(R.id.description);
+		typeIndicator = (ImageView) v.findViewById(R.id.type_indicator);
+		if (getPassword().dataType.equals(VaultedText.TYPE_FILE)) {
+			typeIndicator.setImageResource(R.drawable.ic_action_new_file);
+		} else if (getPassword().dataType.equals(VaultedText.TYPE_IMAGE)) {
+			typeIndicator.setImageResource(R.drawable.ic_action_new_picture);
+		} else {
+			typeIndicator.setImageResource(R.drawable.ic_action_abc);
+		}
 		view = (ImageView) v.findViewById(R.id.icon);
 		view.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				listener.onViewButtonClicked(PasswordCard.this);
+				listener.onViewButtonClicked(VaultedTextCard.this);
 			}
 		});
 		title = (TextView) v.findViewById(R.id.title);
@@ -79,6 +92,6 @@ public class PasswordCard extends Card {
 	}
 
 	public interface OnViewButtonLister {
-		public void onViewButtonClicked(PasswordCard card);
+		public void onViewButtonClicked(VaultedTextCard card);
 	}
 }

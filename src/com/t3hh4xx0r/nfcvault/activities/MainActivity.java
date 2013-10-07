@@ -1,5 +1,8 @@
 package com.t3hh4xx0r.nfcvault.activities;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -9,18 +12,24 @@ import java.util.List;
 import android.app.AlertDialog;
 import android.app.AlertDialog.Builder;
 import android.app.PendingIntent;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.DialogInterface.OnDismissListener;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Typeface;
 import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.nfc.NfcAdapter;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.support.v4.app.FragmentActivity;
+import android.util.Base64;
+import android.util.Log;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -35,6 +44,7 @@ import com.fima.cardsui.objects.Card;
 import com.fima.cardsui.objects.Card.OnCardSwiped;
 import com.fima.cardsui.objects.CardStack;
 import com.fima.cardsui.views.CardUI;
+import com.ipaulpro.afilechooser.utils.FileUtils;
 import com.parse.DeleteCallback;
 import com.parse.FindCallback;
 import com.parse.GetCallback;
@@ -46,11 +56,11 @@ import com.parse.ParseUser;
 import com.parse.SaveCallback;
 import com.t3hh4xx0r.nfcvault.LaunchPopup;
 import com.t3hh4xx0r.nfcvault.LaunchPopupManager;
-import com.t3hh4xx0r.nfcvault.Password;
-import com.t3hh4xx0r.nfcvault.PasswordCard;
-import com.t3hh4xx0r.nfcvault.PasswordCard.OnViewButtonLister;
 import com.t3hh4xx0r.nfcvault.R;
 import com.t3hh4xx0r.nfcvault.SettingsProvider;
+import com.t3hh4xx0r.nfcvault.VaultedText;
+import com.t3hh4xx0r.nfcvault.VaultedTextCard;
+import com.t3hh4xx0r.nfcvault.VaultedTextCard.OnViewButtonLister;
 import com.t3hh4xx0r.nfcvault.encryption.Encryption;
 
 import de.cketti.library.changelog.ChangeLog;
@@ -58,7 +68,7 @@ import de.cketti.library.changelog.ChangeLog;
 public class MainActivity extends FragmentActivity {
 	CardUI mCardView;
 	ArrayList<CardStack> mCardStacks;
-	ArrayList<PasswordCard> mCards;
+	ArrayList<VaultedTextCard> mCards;
 	ArrayList<String> stackTitles;
 
 	private NfcAdapter mAdapter;
@@ -66,14 +76,17 @@ public class MainActivity extends FragmentActivity {
 
 	boolean isListeningforInitialTagScan = false;
 	boolean isListeningforDecryptTagScan = false;
-	PasswordCard cardFromDecrypt;
+	VaultedTextCard cardFromDecrypt;
 
 	String COLOR = "#33b6ea";
 
 	ProgressBar pBar;
 
 	AlertDialog setupDialog;
+	AlertDialog typeDialog;
 
+	public static String TMP_FILE_AS_STRING;
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -87,7 +100,7 @@ public class MainActivity extends FragmentActivity {
 		mCardView.setSwipeable(true);
 		stackTitles = new ArrayList<String>();
 		mCardStacks = new ArrayList<CardStack>();
-		mCards = new ArrayList<PasswordCard>();
+		mCards = new ArrayList<VaultedTextCard>();
 
 		setupPasswordCards();
 
@@ -109,7 +122,7 @@ public class MainActivity extends FragmentActivity {
 	}
 
 	private void setupPasswordStacks() {
-		for (PasswordCard card : mCards) {
+		for (VaultedTextCard card : mCards) {
 			getStackForTitle(card.getPassword().getDataStack()).add(card);
 		}
 
@@ -133,11 +146,18 @@ public class MainActivity extends FragmentActivity {
 			public void done(List<ParseObject> results, ParseException e) {
 				if (e == null) {
 					for (final ParseObject o : results) {
-						Password p = new Password(o.getString("data_stack"), o
+						VaultedText p = new VaultedText(o
+								.getString("data_stack"), o
 								.getString("data_value"), o
-								.getString("data_title"));
+								.getString("data_title"), o
+								.getString("data_type"));
+
 						p.setParseId(o.getObjectId());
-						final PasswordCard card = new PasswordCard(p,
+						if (p.getDataType() == null) {
+							p.setDataType(VaultedText.TYPE_TEXT);
+							p.toParsePassword().saveInBackground();
+						}
+						final VaultedTextCard card = new VaultedTextCard(p,
 								viewButtonListener);
 						card.setOnClickListener(new View.OnClickListener() {
 							@Override
@@ -179,7 +199,7 @@ public class MainActivity extends FragmentActivity {
 		});
 	}
 
-	private void handleCardSwipe(View layout, final PasswordCard card,
+	private void handleCardSwipe(View layout, final VaultedTextCard card,
 			final ParseObject o) {
 		if (isOnline(this)) {
 			AlertDialog.Builder b = new Builder(layout.getContext());
@@ -246,12 +266,8 @@ public class MainActivity extends FragmentActivity {
 			}
 		} else if (item.getItemId() == R.id.action_help) {
 			requestHelp();
-		} else if (item.getItemId() == R.id.action_add_password) {
-			Intent i = new Intent(this, AddPasswordActivity.class);
-			Bundle b = new Bundle();
-			b.putStringArrayList("stacks", getStackNames());
-			i.putExtras(b);
-			startActivityForResult(i, 0);
+		} else if (item.getItemId() == R.id.action_add_new) {
+			showTypePopup();
 		} else if (item.getItemId() == R.id.action_contact) {
 			final Intent emailIntent = new Intent(
 					android.content.Intent.ACTION_SEND);
@@ -263,6 +279,59 @@ public class MainActivity extends FragmentActivity {
 			startActivity(Intent.createChooser(emailIntent, "Send via..."));
 		}
 		return super.onMenuItemSelected(featureId, item);
+	}
+
+	private void showTypePopup() {
+		AlertDialog.Builder b = new Builder(this);
+		b.setTitle("Add New...");
+		b.setView(getNewDialogView());
+		typeDialog = b.create();
+		typeDialog.show();
+
+	}
+
+	private View getNewDialogView() {
+		LayoutInflater inf = LayoutInflater.from(this);
+		View root = inf.inflate(R.layout.type_dialog_popup, null, false);
+		View text = root.findViewById(R.id.text_holder);
+		text.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				typeDialog.dismiss();
+				Intent i = new Intent(v.getContext(), AddPasswordActivity.class);
+				Bundle b = new Bundle();
+				b.putStringArrayList("stacks", getStackNames());
+				i.putExtras(b);
+				startActivityForResult(i, 0);
+			}
+		});
+		View images = root.findViewById(R.id.image_holder);
+		images.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				typeDialog.dismiss();
+
+				Intent i = new Intent(
+						Intent.ACTION_PICK,
+						android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+				startActivityForResult(i, 2);
+			}
+		});
+		View file = root.findViewById(R.id.file_holder);
+		file.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				typeDialog.dismiss();
+				Intent target = FileUtils.createGetContentIntent();
+				Intent intent = Intent.createChooser(target, "Select With...");
+				try {
+					startActivityForResult(intent, 3);
+				} catch (ActivityNotFoundException e) {
+					e.printStackTrace();
+				}
+			}
+		});
+		return root;
 	}
 
 	private ArrayList<String> getStackNames() {
@@ -278,14 +347,20 @@ public class MainActivity extends FragmentActivity {
 		super.onActivityResult(requestCode, resultCode, data);
 		if (requestCode == 0) {
 			if (data != null && data.hasExtra("password")) {
-				Password result = (Password) data
+				VaultedText result = (VaultedText) data
 						.getSerializableExtra("password");
-				PasswordCard pCard = new PasswordCard(result,
+				if (result.getDataValue().equals("")) {
+					result.setDataValue(TMP_FILE_AS_STRING);
+					TMP_FILE_AS_STRING = null;
+				}
+				VaultedTextCard pCard = new VaultedTextCard(result,
 						viewButtonListener);
 				getStackForTitle(pCard.getPassword().getDataStack()).add(pCard);
 				mCardView.refresh();
 				showProgress(this);
-				result.toParsePassword().saveInBackground(new SaveCallback() {
+				ParseObject o = result.toParsePassword();
+				Log.d("THE PARSE OBJECT", o.toString());
+				o.saveInBackground(new SaveCallback() {
 					@Override
 					public void done(ParseException arg0) {
 						setupPasswordCards();
@@ -295,26 +370,28 @@ public class MainActivity extends FragmentActivity {
 			}
 		} else if (requestCode == 1) {
 			if (data != null && data.hasExtra("password")) {
-				final Password result = (Password) data
+				final VaultedText result = (VaultedText) data
 						.getSerializableExtra("password");
-				final Password old = (Password) data
+				final VaultedText old = (VaultedText) data
 						.getSerializableExtra("oldPassword");
-				final PasswordCard pCard = new PasswordCard(result,
+				final VaultedTextCard pCard = new VaultedTextCard(result,
 						viewButtonListener);
-				ParseQuery<ParseObject> query = ParseQuery.getQuery("Password");
+				ParseQuery<ParseObject> query = ParseQuery
+						.getQuery("VaultedText");
 				query.getInBackground(pCard.getPassword().getParseId(),
 						new GetCallback<ParseObject>() {
 							@Override
 							public void done(ParseObject foundPassObject,
 									ParseException arg1) {
 								if (foundPassObject != null) {
-									Password foundPass = new Password(
+									VaultedText foundPass = new VaultedText(
 											foundPassObject
 													.getString("data_stack"),
 											foundPassObject
 													.getString("data_value"),
 											foundPassObject
-													.getString("data_title"));
+													.getString("data_title"),
+											VaultedText.TYPE_TEXT);
 									foundPass.setParseId(foundPassObject
 											.getObjectId());
 									foundPass.update(result);
@@ -324,7 +401,7 @@ public class MainActivity extends FragmentActivity {
 														@Override
 														public void done(
 																ParseException arg0) {
-															for (PasswordCard card : mCards) {
+															for (VaultedTextCard card : mCards) {
 																if (card.getPassword()
 																		.getParseId()
 																		.equals(old
@@ -344,12 +421,67 @@ public class MainActivity extends FragmentActivity {
 							}
 						});
 			}
+		} else if (requestCode == 2 && resultCode == RESULT_OK && null != data) {
+			Uri selectedImage = data.getData();
+			String[] filePathColumn = { MediaStore.Images.Media.DATA };
+
+			Cursor cursor = getContentResolver().query(selectedImage,
+					filePathColumn, null, null, null);
+			cursor.moveToFirst();
+
+			int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+			String picturePath = cursor.getString(columnIndex);
+			cursor.close();
+			File imageF = new File(picturePath);
+			try {
+				String toBeStored = readFileToString(imageF);
+				Log.d("GOT A PICTURE AS A STRING TO ENCRYPT", toBeStored);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		} else if (requestCode == 3 && resultCode == RESULT_OK) {
+			if (data != null) {
+				final Uri uri = data.getData();
+				try {
+					String path = FileUtils.getPath(this, uri);
+					File file = new File(path);
+					String toBeStored = readFileToString(file);
+					Log.d("GOT A FILE AS A STRING TO ENCRYPT", toBeStored);
+					Intent i = new Intent(this, AddPasswordFileActivity.class);
+					Bundle b = new Bundle();
+					b.putString("type", VaultedText.TYPE_FILE);
+					b.putStringArrayList("stacks", getStackNames());
+					TMP_FILE_AS_STRING = toBeStored;
+					i.putExtras(b);
+					startActivityForResult(i, 0);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	public String readFileToString(File file) throws IOException {
+		// Open file
+		RandomAccessFile f = new RandomAccessFile(file, "r");
+		try {
+			// Get and check length
+			long longlength = f.length();
+			int length = (int) longlength;
+			if (length != longlength)
+				throw new IOException("File size >= 2 GB");
+			// Read file and return data
+			byte[] data = new byte[length];
+			f.readFully(data);
+			return Base64.encodeToString(data, Base64.DEFAULT);
+		} finally {
+			f.close();
 		}
 	}
 
 	private void notifyKeySet() {
 		AlertDialog.Builder b = new Builder(this);
-		b.setTitle("Master Password Already Set");
+		b.setTitle("Master VaultedText Already Set");
 		b.setMessage("You have already set a master password. If you overwrite this, any password you have encrypted with your current master password will be reset. Are you sure you want to continue?");
 		b.setPositiveButton("Yes", new OnClickListener() {
 			@Override
@@ -362,7 +494,7 @@ public class MainActivity extends FragmentActivity {
 
 	protected void requestConfirmation() {
 		AlertDialog.Builder b = new Builder(this);
-		b.setTitle("Master Password Already Set");
+		b.setTitle("Master VaultedText Already Set");
 		b.setMessage("Again, if you overwrite this, any password you have encrypted with your current master password will be reset. Are you sure you want to continue?");
 		b.setPositiveButton("Yes", new OnClickListener() {
 			@Override
@@ -387,14 +519,15 @@ public class MainActivity extends FragmentActivity {
 		b.create().show();
 	}
 
-	private void requestKeyValidation(boolean forDecryptView, PasswordCard card) {
+	private void requestKeyValidation(boolean forDecryptView,
+			VaultedTextCard card) {
 		isListeningforInitialTagScan = !forDecryptView;
 		isListeningforDecryptTagScan = forDecryptView;
 		if (card != null) {
 			cardFromDecrypt = card;
 		}
 		AlertDialog.Builder b = new Builder(this);
-		b.setTitle("Master Password");
+		b.setTitle("Master VaultedText");
 		if (forDecryptView) {
 			final EditText keyView = new EditText(this);
 			keyView.setHint("Or enter you master password here");
@@ -431,8 +564,15 @@ public class MainActivity extends FragmentActivity {
 
 	private void warnWrongKey() {
 		AlertDialog.Builder b = new Builder(this);
-		b.setTitle("Master Password Mismatch");
+		b.setTitle("Master VaultedText Mismatch");
 		b.setMessage("When you originally setup your master password, the app hashed and stored that value. The hash of the key you just scanned does not match the stored hash. Confirm you are using the correct key and try again.");
+		b.create().show();
+	}
+
+	private void warnNoKey() {
+		AlertDialog.Builder b = new Builder(this);
+		b.setTitle("Master VaultedText No Set");
+		b.setMessage("You need to setup a tag as your master password before we continue.");
 		b.create().show();
 	}
 
@@ -502,7 +642,11 @@ public class MainActivity extends FragmentActivity {
 						.isShowingTrueData());
 			}
 		} else {
-			warnWrongKey();
+			if (new SettingsProvider(this).getHashedKey().trim().isEmpty()) {
+				warnNoKey();
+			} else {
+				warnWrongKey();
+			}
 		}
 		setupDialog.dismiss();
 		cardFromDecrypt = null;
@@ -525,7 +669,7 @@ public class MainActivity extends FragmentActivity {
 			keyView.setText(key);
 			AlertDialog.Builder b = new Builder(this);
 			b.setCancelable(false);
-			b.setTitle("Master Password");
+			b.setTitle("Master VaultedText");
 			b.setMessage("This is your master password. This is the only time it will ever be shown. Be SURE you write this down in case your tag is lost.");
 			b.setView(keyView);
 			b.setPositiveButton("Done", new OnClickListener() {
@@ -563,9 +707,14 @@ public class MainActivity extends FragmentActivity {
 
 	OnViewButtonLister viewButtonListener = new OnViewButtonLister() {
 		@Override
-		public void onViewButtonClicked(PasswordCard card) {
+		public void onViewButtonClicked(VaultedTextCard card) {
 			if (!card.isShowingTrueData()) {
-				requestKeyValidation(true, card);
+				if (new SettingsProvider(card.getContext()).getHashedKey()
+						.trim().isEmpty()) {
+					warnNoKey();
+				} else {
+					requestKeyValidation(true, card);
+				}
 			} else {
 				card.setShowingTrueData(!card.isShowingTrueData());
 			}
@@ -605,7 +754,7 @@ public class MainActivity extends FragmentActivity {
 		final LaunchPopup rate = new LaunchPopup();
 		rate.setNeedsPlayStore(true);
 		rate.setLaunchesTimes(getRatePopupTimes());
-		rate.setTitle("Rate NFCSecure?");
+		rate.setTitle("Rate NFCVault?");
 		rate.setMessage("If you like this app, please take a moment to comment and rate it on Google Play. Thank you!");
 		rate.setPosButton("Rate it", new OnClickListener() {
 			@Override
